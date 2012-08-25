@@ -1,0 +1,79 @@
+#!env python
+
+import argparse
+import collections
+import re
+import sys
+
+argparser = argparse.ArgumentParser(description=
+'''Filter paths from a .dot graph that do not include specified nodes.''')
+argparser.add_argument('file', help='.dot file to filter')
+argparser.add_argument('targets', nargs='+')
+argparser.add_argument('-o', '--outfile', help='Filtered output', default='-')
+args = argparser.parse_args()
+
+# Regular expressions for nodes and edges.
+labeled_node = re.compile('\s*[A-Za-z0-9_]+\s\[.*label.*\];$')
+edge = re.compile('\s*[A-Za-z0-9_]+\s*->\s*[A-Za-z0-9_]+')
+
+# Nodes that we definitely want to keep.
+keep = {}
+
+# Read in the graph.
+def blank_node(): return { 'from': set() }
+nodes = collections.defaultdict(blank_node)
+
+for line in open(args.file, 'r'):
+	if labeled_node.match(line):
+		(name, attributes) = line.split()
+		attributes = attributes[1:-2]
+		attributes = dict([ x.split('=') for x in attributes.split(',') ])
+
+		assert re.match('"{.*}"', attributes['label'])
+		attributes['label'] = attributes['label'][2:-2]
+		attributes['name'] = name
+
+		nodes[name].update(attributes)
+		if attributes['label'] in args.targets: keep[name] = nodes[name]
+
+	elif edge.match(line):
+		(begin, end) = [ nodes[s.strip()] for s in line[:-2].split('->') ]
+		end['from'].add(begin['name'])
+
+
+# Find all ancestors of a node (that we don't already know about).
+def get_ancestors(node, keep):
+	keep[node['name']] = node
+	for predecessor in node['from']:
+		node = nodes[predecessor]
+		(name, label) = (node['name'], node['label'])
+		if name in keep: continue
+		keep[name] = node
+		get_ancestors(node, keep)
+
+	return keep
+
+for target in keep.values(): get_ancestors(target, keep)
+
+
+# Write the filtered callgraph.
+if args.outfile == '-': out = sys.stdout
+else: out = open(args.outfile, 'w')
+
+out.write('digraph {\n')
+
+for (name,node) in keep.items():
+	# Ignore attributes created above.
+	attrs = filter(lambda key: key not in [ 'from', 'name' ], node)
+
+	if len(attrs) > 0:
+		# Put the quotes back around labels.
+		if 'label' in node: node['label'] = '"%s"' % node['label']
+		attrs = ' [%s]' % ','.join([ '%s=%s' % (a,node[a]) for a in attrs])
+
+	out.write('\t%s%s;\n' % (name, attrs))
+	for pred in node['from']:
+		out.write('\t%s -> %s;\n' % (nodes[pred]['name'], name))
+
+out.write('}\n')
+
