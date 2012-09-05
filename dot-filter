@@ -40,12 +40,13 @@ nodes = collections.defaultdict(blank_node)
 
 for line in open(args.file, 'r'):
 	if labeled_node.match(line):
-		(name, attributes) = line.split()
+		(name, attributes) = line.split(' ', 1)
+		name = name.strip()
 		attributes = attributes[1:-2]
 		attributes = dict([ x.split('=') for x in attributes.split(',') ])
 
 		assert re.match('"{.*}"', attributes['label'])
-		attributes['label'] = attributes['label'][2:-2]
+		attributes['label'] = attributes['label'][2:-3]
 		attributes['name'] = name
 
 		if attributes['label'] in args.ignore: ignore.append(name)
