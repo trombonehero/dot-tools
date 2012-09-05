@@ -52,7 +52,13 @@ for line in open(args.file, 'r'):
 		if attributes['label'] in args.ignore: ignore.append(name)
 
 		nodes[name].update(attributes)
-		if attributes['label'] in args.targets: keep[name] = nodes[name]
+		if attributes['label'] in args.targets:
+			attributes.update({
+					'fillcolor': '"#99ccff"',
+					'shape':     'oval',
+					'style':     '"bold,filled"'
+				})
+			keep[name] = nodes[name]
 
 	elif edge.match(line):
 		(begin, end) = [ nodes[s.strip()] for s in line[:-2].split('->') ]
