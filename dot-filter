@@ -149,7 +149,10 @@ for (name,node) in keep.items():
 
 	for pred in node['from']:
 		if pred in ignore: continue
-		out.write('\t%s -> %s;\n' % (nodes[pred]['name'], name))
+
+		color = node['fillcolor'] if 'fillcolor' in node else '#00000033'
+		attrs = attribute_list({ 'color': color })
+		out.write('\t%s -> %s%s;\n' % (nodes[pred]['name'], name, attrs))
 
 out.write('}\n')
 
