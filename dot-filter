@@ -104,8 +104,8 @@ for line in open(args.file, 'r'):
 		if attributes['label'] in args.ignore: ignore.append(name)
 		if attributes['label'] in targets:
 			attributes.update({
-					'fillcolor': '"%s"' % targets[attributes['label']],
-					'style':     '"bold,filled"'
+					'fillcolor': targets[attributes['label']],
+					'style':     'bold,filled'
 				})
 			keep[name] = nodes[name]
 
@@ -132,6 +132,10 @@ def get_ancestors(node, keep):
 for target in keep.values(): get_ancestors(target, keep)
 
 
+def attribute_list(attrs):
+	return '[%s]' % ','.join([ '%s="%s"' % (a,attrs[a]) for a in attrs])
+
+
 # Write the filtered callgraph.
 if args.outfile == '-': out = sys.stdout
 else: out = open(args.outfile, 'w')
@@ -140,14 +144,9 @@ out.write('digraph {\n')
 
 for (name,node) in keep.items():
 	# Ignore attributes created above.
-	attrs = filter(lambda key: key not in [ 'from', 'name' ], node)
+	attrs = dict([ (a, node[a]) for a in node if a not in [ 'from', 'name' ] ])
+	out.write('\t%s%s;\n' % (name, attribute_list(attrs)))
 
-	if len(attrs) > 0:
-		# Put the quotes back around labels.
-		if 'label' in node: node['label'] = '"%s"' % node['label']
-		attrs = ' [%s]' % ','.join([ '%s=%s' % (a,node[a]) for a in attrs])
-
-	out.write('\t%s%s;\n' % (name, attrs))
 	for pred in node['from']:
 		if pred in ignore: continue
 		out.write('\t%s -> %s;\n' % (nodes[pred]['name'], name))
