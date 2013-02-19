@@ -10,7 +10,7 @@ argparser = argparse.ArgumentParser(description=
 '''Filter paths from a .dot graph that do not end in specified nodes.''')
 
 files = argparser.add_argument_group('Files')
-files.add_argument('file', help='.dot file to filter')
+files.add_argument('filename', help='.dot file to filter')
 files.add_argument('-o', '--outfile', metavar='OUT', default='-',
 	help='Filtered output (.dot file)')
 
@@ -90,7 +90,7 @@ ignore = []
 def blank_node(): return { 'from': set() }
 nodes = collections.defaultdict(blank_node)
 
-for line in open(args.file, 'r'):
+for line in open(args.filename, 'r'):
 	if labeled_node.match(line):
 		(name, attributes) = line.split(' ', 1)
 		name = name.strip()
