@@ -66,9 +66,10 @@ for (flag, message, syscalls) in syscall_groups:
 args = argparser.parse_args()
 
 
-# Regular expressions for nodes and edges.
-labeled_node = re.compile('\s*[A-Za-z0-9_]+\s\[.*label.*\];$')
-edge = re.compile('\s*[A-Za-z0-9_]+\s*->\s*[A-Za-z0-9_]+')
+# Regular expressions for edges and nodes, etc.
+edge = re.compile('\s*(.+)\s*->\s*(.+);')
+labeled_node = re.compile('\s*("?[A-Za-z0-9_ ]+"?)\s\[(.*label.*)\];$')
+quoted = re.compile('^"(.*)"$')
 
 # Nodes that we want to ignore.
 ignore = set()
@@ -78,16 +79,37 @@ def blank_node(): return { 'from': set(), 'to': set() }
 nodes = collections.defaultdict(blank_node)
 names = {}
 
+preamble = ''
+postamble = ''
+
+def unquote(s):
+	s = s.strip()
+
+	if quoted.match(s):
+		return s[1:-1]
+
+	return s
+
+
 for line in open(args.filename, 'r'):
-	if labeled_node.match(line):
-		(name, attributes) = line.split(' ', 1)
-		name = name.strip()
-		attributes = attributes[1:-2]
-		attributes = dict([ x.split('=') for x in attributes.split(',') ])
+	if edge.match(line):
+		(b, e) = [ unquote(x.strip()) for x in edge.match(line).groups() ]
+		(begin, end) = (nodes[b], nodes[e])
 
-		assert re.match('"{.*}"', attributes['label'])
-		label = attributes['label'][2:-3]
+		begin['to'].add(e)
+		end['from'].add(b)
 
+	elif labeled_node.match(line):
+		(name, attributes) = labeled_node.match(line).groups()
+		name = unquote(name)
+
+		attributes = [ x.split('=') for x in attributes.split(',') ]
+		attributes = dict([ (k.strip(), v.strip()) for (k,v) in attributes ])
+
+		if 'label' not in attributes:
+			raise ValueError('no label in %s' % attributes)
+
+		label = unquote(attributes['label'])
 		attributes['label'] = label
 
 		nodes[name].update(attributes)
@@ -95,12 +117,14 @@ for line in open(args.filename, 'r'):
 		if args.ignore and label in args.ignore:
 			ignore.add(name)
 
-	elif edge.match(line):
-		(b, e) = [ s.strip() for s in line[:-2].split('->') ]
-		(begin, end) = (nodes[b], nodes[e])
+	elif len(line.strip()) == 0:
+		pass
 
-		begin['to'].add(e)
-		end['from'].add(b)
+	elif len(nodes) == 0:
+		preamble += line
+
+	else:
+		postamble += line
 
 
 print 'Read graph with', len(nodes), 'nodes'
@@ -151,6 +175,9 @@ if args.ancestors_of:
 descendents = set()
 if args.descendents_of:
 	for target in args.descendents_of:
+		if target not in names:
+			raise ValueError("no '%s' in %s" % (target, names.keys()))
+
 		get_descendents(names[target], descendents)
 
 	count = len(descendents) - len(args.descendents_of)
@@ -228,7 +255,7 @@ def attribute_list(attrs):
 	""" Convert a Python dictionary to a .dot attribute list. """
 	return '[%s]' % ','.join([ '%s="%s"' % (a,attrs[a]) for a in attrs])
 
-out.write('digraph {\n')
+out.write(preamble)
 
 for name in keep:
 	node = nodes[name]
@@ -238,7 +265,7 @@ for name in keep:
 		(a, node[a]) for a in node if a not in [ 'to', 'from' ]
 	])
 
-	out.write('\t%s%s;\n' % (name, attribute_list(attrs)))
+	out.write('\t"%s" %s;\n' % (name, attribute_list(attrs)))
 
 	for successor in node['to']:
 		if successor not in keep: continue
@@ -251,9 +278,9 @@ for name in keep:
 		else: color = '#00000033'
 
 		attrs = attribute_list({ 'color': color })
-		out.write('\t%s -> %s%s;\n' % (name, successor, attrs))
+		out.write('\t"%s" -> "%s" %s;\n' % (name, successor, attrs))
 
 	out.write('\n')
 
-out.write('}\n')
+out.write(postamble)
 
