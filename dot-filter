@@ -69,6 +69,7 @@ args = argparser.parse_args()
 # Regular expressions for edges and nodes, etc.
 edge = re.compile('\s*(.+)\s*->\s*(.+);')
 labeled_node = re.compile('\s*("?[A-Za-z0-9_ ]+"?)\s\[(.*label.*)\];$')
+attributes = re.compile('\s*([A-Za-z]+\s*=\s*[^,]+,)+')
 quoted = re.compile('^"(.*)"$')
 
 # Nodes that we want to ignore.
@@ -100,19 +101,25 @@ for line in open(args.filename, 'r'):
 		end['from'].add(b)
 
 	elif labeled_node.match(line):
-		(name, attributes) = labeled_node.match(line).groups()
+		(name, attrs) = labeled_node.match(line).groups()
 		name = unquote(name)
 
-		attributes = [ x.split('=') for x in attributes.split(',') ]
-		attributes = dict([ (k.strip(), v.strip()) for (k,v) in attributes ])
+		attrs = [
+			x[:-1].split('=')
+			for x in attributes.findall(attrs + ',')
+		]
 
-		if 'label' not in attributes:
-			raise ValueError('no label in %s' % attributes)
+		attrs = dict([
+			(k.strip(), unquote(v.strip()))
+			for (k,v) in attrs
+		])
 
-		label = unquote(attributes['label'])
-		attributes['label'] = label
+		if 'label' not in attrs:
+			raise ValueError('no label in %s' % attrs)
 
-		nodes[name].update(attributes)
+		nodes[name].update(attrs)
+
+		label = attrs['label']
 		names[label] = name
 		if args.ignore and label in args.ignore:
 			ignore.add(name)
